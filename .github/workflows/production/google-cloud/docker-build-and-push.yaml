@@ -1,0 +1,135 @@
+name: Google Cloud Build and Push
+on:
+  workflow_call:
+    inputs:
+      APP_NAME:
+        required: true
+        type: string
+        description: "The name of the application. Only use lowercase letters, numbers, and dashes. e.g. 'my-application'"
+      CACHE_KEY_PATH:
+        required: false
+        type: string
+        description: "The file to use as the cache key. e.g. 'package-lock.json'"
+        default: "package-lock.json"
+      CACHE_PATH:
+        required: false
+        type: string
+        description: "The path to cache. e.g. 'node_modules'"
+        default: "node_modules"
+      DOCKERFILE_PATH:
+        required: false
+        type: string
+        description: "The path to the Dockerfile that will be built. e.g. 'Dockerfile'"
+        default: "Dockerfile"
+      GKE_PROJECT:
+        required: true
+        type: string
+        description: "The GKE Project that houses the Artifact Registry. e.g. 'my-gcp-project'"
+# todo: add this
+#      HELM_REPOSITORY:
+#        required: true
+#        type: string
+#        description: "The Helm Charts Repository to update after the push. e.g. 'Puravida-Technologies/helm-charts'"
+#        default: ""
+      IMAGE_REPOSITORY:
+        required: false
+        type: string
+        description: "The Artifact Registry Repo to push the image to. e.g. ('us.gcr.io')"
+        default: "us.gcr.io"
+      IMAGE_REPOSITORY_REGION:
+        required: false
+        type: string
+        description: "The Artifact Registry Region to push the image to. e.g. ('us')"
+        default: "us"
+      NODE_VERSION:
+        required: false
+        type: string
+        description: "The version of Node.js to use for any Node operations. e.g. ('18.2.0')"
+        default: "18.2.0"
+      WORKING_DIRECTORY:
+        required: false
+        type: string
+        description: "The working directory that all operations should be run from. e.g. ('packages/some-package')"
+        default: ""
+        
+#    secrets:
+#      envPAT:
+#        required: true
+
+# PROD_DEPLOY_SA_CRED_JSON
+
+env:
+  APP_NAME: ${{ inputs.APP_NAME }}
+  CACHE_KEY_PATH: ${{ inputs.CACHE_KEY_PATH }}
+  CACHE_PATH: ${{ inputs.CACHE_PATH }}
+  DOCKERFILE_PATH: ${{ inputs.DOCKERFILE_PATH }}
+  GKE_PROJECT: ${{ inputs.GKE_PROJECT }}
+  IMAGE_REPOSITORY: ${{ inputs.IMAGE_REPOSITORY }}
+  IMAGE_REPOSITORY_REGION: ${{ inputs.IMAGE_REPOSITORY_REGION }}
+  NODE_VERSION: ${{ inputs.NODE_VERSION }}
+  WORKING_DIRECTORY: ${{ inputs.WORKING_DIRECTORY }}
+    
+jobs:
+  build_and_push:
+    name: Build & Push Image
+    if: ( github.event.pull_request.merged == true || github.event_name == 'push' )
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build_and_push.outputs.image_digest }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        id: cache
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/cache@v3
+        with:
+          path: ${{ env.CACHE_KEY }}
+          key: ${{ hashFiles( env.CACHE_KEY_PATH ) }}
+
+      - name: Install Deps
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm ci
+
+      - name: Docker Build
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |-
+          # mkdir -p ./dist
+          docker build \
+            --tag "$APP_NAME:$GITHUB_SHA" \
+            --file "$DOCKERFILE_PATH" \
+            .
+
+      - name: Authenticate w/ Google
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.PROD_DEPLOY_SA_CRED_JSON }}'
+
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v1'
+
+      - name: Configure Docker Client
+        run: |-
+          gcloud auth configure-docker --quiet
+          gcloud auth configure-docker $IMAGE_REPOSITORY_REGION-docker.pkg.dev --quiet
+
+      - name: Push Docker Image
+        id: image_push
+        run: |-
+          ## first we tag & push the git sha as well as the edge tag
+          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
+          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
+          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
+          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
+
+          ## second we extract the image digest for the helm upgrade later
+          # DIGEST=$(gcloud container images describe "$IMAGE_REPOSITORY/$PROJECT_ID/$APP_NAME:$GITHUB_SHA" --format="value(image_summary.digest)")
+          # echo "image_digest=$DIGEST" >> $GITHUB_OUTPUT
+
