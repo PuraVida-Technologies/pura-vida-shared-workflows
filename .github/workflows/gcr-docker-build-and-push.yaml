@@ -46,6 +46,11 @@ on:
         type: string
         description: "The version of Node.js to use for any Node operations. e.g. ('18.2.0')"
         default: "18.2.0"
+      PACKAGE_MANAGER:
+        required: false
+        type: string
+        description: "The package manager to use. e.g. ('yarn')"
+        default: "npm"
       WORKING_DIRECTORY:
         required: false
         type: string
@@ -93,8 +98,18 @@ jobs:
           path: ${{ env.CACHE_KEY }}
           key: ${{ hashFiles( env.CACHE_KEY_PATH ) }}
 
-      - name: Install Deps
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Install Yarn
+        if: inputs.PACKAGE_MANAGER == 'yarn'
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm install -g yarn
+
+      - name: Install Deps (via Yarn)
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.PACKAGE_MANAGER == 'yarn'
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: yarn install
+
+      - name: Install Deps (via NPM)
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.PACKAGE_MANAGER == 'npm'
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: npm ci
 
