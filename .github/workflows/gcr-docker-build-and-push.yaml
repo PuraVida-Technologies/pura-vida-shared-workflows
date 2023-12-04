@@ -95,8 +95,8 @@ jobs:
 
       - uses: actions/cache@v3
         with:
-          path: ${{ env.CACHE_KEY }}
-          key: ${{ hashFiles( env.CACHE_KEY_PATH ) }}
+          path: ${{ inputs.CACHE_KEY }}
+          key: ${{ hashFiles( inputs.CACHE_KEY_PATH ) }}
 
       - name: Install Yarn
         if: inputs.PACKAGE_MANAGER == 'yarn'
