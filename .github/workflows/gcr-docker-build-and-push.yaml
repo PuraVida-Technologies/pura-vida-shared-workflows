@@ -116,38 +116,38 @@ jobs:
 #        working-directory: ${{ env.WORKING_DIRECTORY }}
 #        run: npm ci
 
-      - name: Docker Build
-        working-directory: ${{ env.WORKING_DIRECTORY }}
-        run: |-
-          # mkdir -p ./dist
-          docker build \
-            --tag "$APP_NAME:$GITHUB_SHA" \
-            --file "$DOCKERFILE_PATH" \
-            .
+#      - name: Docker Build
+#        working-directory: ${{ env.WORKING_DIRECTORY }}
+#        run: |-
+#          # mkdir -p ./dist
+#          docker build \
+#            --tag "$APP_NAME:$GITHUB_SHA" \
+#            --file "$DOCKERFILE_PATH" \
+#            .
 
       - name: Authenticate w/ Google
         uses: 'google-github-actions/auth@v1'
         with:
-          credentials_json: '${{ secrets.PROD_DEPLOY_SA_CRED_JSON }}'
+          credentials_json: ${{ secrets.PROD_DEPLOY_SA_CRED_JSON }}
 
-      - name: Set up Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v1'
-
-      - name: Configure Docker Client
-        run: |-
-          gcloud auth configure-docker --quiet
-          gcloud auth configure-docker $IMAGE_REPOSITORY_REGION-docker.pkg.dev --quiet
-
-      - name: Push Docker Image
-        id: image_push
-        run: |-
-          ## first we tag & push the git sha as well as the edge tag
-          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
-          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
-          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
-          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
-
-          ## second we extract the image digest for the helm upgrade later
-          # DIGEST=$(gcloud container images describe "$IMAGE_REPOSITORY/$PROJECT_ID/$APP_NAME:$GITHUB_SHA" --format="value(image_summary.digest)")
-          # echo "image_digest=$DIGEST" >> $GITHUB_OUTPUT
-
+#      - name: Set up Cloud SDK
+#        uses: 'google-github-actions/setup-gcloud@v1'
+#
+#      - name: Configure Docker Client
+#        run: |-
+#          gcloud auth configure-docker --quiet
+#          gcloud auth configure-docker $IMAGE_REPOSITORY_REGION-docker.pkg.dev --quiet
+#
+#      - name: Push Docker Image
+#        id: image_push
+#        run: |-
+#          ## first we tag & push the git sha as well as the edge tag
+#          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
+#          docker tag $APP_NAME:$GITHUB_SHA "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
+#          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:$GITHUB_SHA"
+#          docker push "$IMAGE_REPOSITORY_REGION-docker.pkg.dev/$PROJECT_ID/$IMAGE_REPOSITORY/$APP_NAME:edge"
+#
+#          ## second we extract the image digest for the helm upgrade later
+#          # DIGEST=$(gcloud container images describe "$IMAGE_REPOSITORY/$PROJECT_ID/$APP_NAME:$GITHUB_SHA" --format="value(image_summary.digest)")
+#          # echo "image_digest=$DIGEST" >> $GITHUB_OUTPUT
+#
