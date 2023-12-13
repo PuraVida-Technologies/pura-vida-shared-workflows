@@ -124,17 +124,17 @@ jobs:
 #            --tag "$APP_NAME:$GITHUB_SHA" \
 #            --file "$DOCKERFILE_PATH" \
 #            .
-
-      - name: Test Secret Value
-        run: echo ${{ secrets.A_TEST_SECRET }}
-
-      - name: Test Secret Value 2
-        run: echo ${#${{ secrets.A_TEST_SECRET }}}
 #
-#      - name: Authenticate w/ Google
-#        uses: 'google-github-actions/auth@v1'
-#        with:
-#          credentials_json: ${{ secrets.PROD_DEPLOY_SA_CRED_JSON }}
+#      - name: Test Secret Value
+#        run: echo ${{ secrets.A_TEST_SECRET }}
+#
+#      - name: Test Secret Value 2
+#        run: echo ${#${{ secrets.A_TEST_SECRET }}}
+#
+      - name: Authenticate w/ Google
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: ${{ secrets.PROD_DEPLOY_SA_CRED_JSON }}
 
 
 #      - name: Set up Cloud SDK
