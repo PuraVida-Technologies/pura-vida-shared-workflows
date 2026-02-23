@@ -1,0 +1,99 @@
+name: Rust CI
+
+on:
+  workflow_call:
+    inputs:
+      RUST_TOOLCHAIN:
+        required: false
+        type: string
+        description: "Rust toolchain version"
+        default: "stable"
+      WORKING_DIRECTORY:
+        required: false
+        type: string
+        description: "Working directory for cargo commands"
+        default: "."
+      CARGO_TEST_ARGS:
+        required: false
+        type: string
+        description: "Extra args for cargo test. e.g. '--workspace --exclude integration-tests'"
+        default: ""
+      SQLX_OFFLINE:
+        required: false
+        type: boolean
+        description: "Set SQLX_OFFLINE=true for compile-time SQLx checks without a live DB"
+        default: false
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.WORKING_DIRECTORY }}
+      - name: cargo check
+        run: cargo check --locked
+        env:
+          SQLX_OFFLINE: ${{ inputs.SQLX_OFFLINE }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.RUST_TOOLCHAIN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.WORKING_DIRECTORY }}
+      - name: cargo test
+        run: cargo test --locked ${{ inputs.CARGO_TEST_ARGS }}
+        env:
+          SQLX_OFFLINE: ${{ inputs.SQLX_OFFLINE }}
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.RUST_TOOLCHAIN }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ inputs.WORKING_DIRECTORY }}
+      - name: cargo clippy
+        run: cargo clippy --locked -- -D warnings
+        env:
+          SQLX_OFFLINE: ${{ inputs.SQLX_OFFLINE }}
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.WORKING_DIRECTORY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.RUST_TOOLCHAIN }}
+          components: rustfmt
+      - name: cargo fmt
+        run: cargo fmt --all --check

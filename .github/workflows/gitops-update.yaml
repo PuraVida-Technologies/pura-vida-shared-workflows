@@ -1,0 +1,80 @@
+name: Update GitOps Image Tag
+
+on:
+  workflow_call:
+    inputs:
+      GITOPS_REPO:
+        required: true
+        type: string
+        description: "Target GitOps repo (org/repo format). e.g. 'PuraVida-Technologies/pura-vida-infra-argocd-galoy'"
+      GITOPS_BRANCH:
+        required: false
+        type: string
+        description: "Branch to update"
+        default: "main"
+      VALUES_FILE_PATH:
+        required: true
+        type: string
+        description: "Path to values file. e.g. 'values/stablesats.yaml'"
+      IMAGE_TAG_YQ_PATH:
+        required: true
+        type: string
+        description: "yq path to image tag field. e.g. '.image.tag'"
+      NEW_TAG:
+        required: true
+        type: string
+        description: "New tag value to set"
+      APP_NAME:
+        required: false
+        type: string
+        description: "App name for commit message (defaults to values filename stem)"
+        default: ""
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: true
+
+jobs:
+  update_gitops:
+    name: Update GitOps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load GitHub PAT from 1Password
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          GITHUB_PAT: op://infra-production-github/github-pat-puravida-bot/credential
+
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.GITOPS_REPO }}
+          ref: ${{ inputs.GITOPS_BRANCH }}
+          token: ${{ env.GITHUB_PAT }}
+
+      - name: Install yq
+        uses: mikefarah/yq@master
+
+      - name: Update image tag
+        run: |
+          yq -i '${{ inputs.IMAGE_TAG_YQ_PATH }} = "${{ inputs.NEW_TAG }}"' '${{ inputs.VALUES_FILE_PATH }}'
+
+      - name: Determine app name
+        id: app_name
+        run: |
+          if [ -n "${{ inputs.APP_NAME }}" ]; then
+            echo "name=${{ inputs.APP_NAME }}" >> "$GITHUB_OUTPUT"
+          else
+            FILENAME=$(basename "${{ inputs.VALUES_FILE_PATH }}" .yaml)
+            echo "name=$FILENAME" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "puravida-bot"
+          git config user.email "bot@pvbtc.cloud"
+          git add .
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: Update '${{ steps.app_name.outputs.name }}' tag to '${{ inputs.NEW_TAG }}'"
+          git push
